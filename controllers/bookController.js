@@ -5,35 +5,60 @@ const Book = require("../models/book");
 const Author = require('../models/author');
 const Genre = require('../models/genre');
 const BookInstance = require('../models/bookinstance');
-const book = require('../models/book');
+
+// exports.index = (req, res) => {
+//   async.parallel(
+//     {
+//       book_count(callback) {
+//         Book.countDocuments({}, callback);
+//       },
+//       book_instance_count(callback) {
+//         BookInstance.countDocuments({}, callback);
+//       },
+//       book_instance_available_count(callback) {
+//         BookInstance.countDocuments({ status: "Available" }, callback);
+//       },
+//       author_count(callback) {
+//         Author.countDocuments({}, callback);
+//       },
+//       genre_count(callback) {
+//         Genre.countDocuments({}, callback);
+//       },
+//     },
+//     (err, results) => {
+//       res.render('index', {
+//         title: 'Local Library Home',
+//         error: err,
+//         data: results,
+//       });
+//     }
+//   );
+// };
 
 exports.index = (req, res) => {
-  async.parallel(
-    {
-      book_count(callback) {
-        Book.countDocuments({}, callback);
+  Promise.all([
+    Book.countDocuments({}),
+    BookInstance.countDocuments({}),
+    BookInstance.countDocuments({ status: "Available" }),
+    Author.countDocuments({}),
+    Genre.countDocuments({}),
+  ]).then(results => {
+    res.render('index', {
+      title: 'Local Library Home',
+      data: {
+        book_count: results[0],
+        book_instance_count: results[1],
+        book_instance_available_count: results[2],
+        author_count: results[3],
+        genre_count: results[4],
       },
-      book_instance_count(callback) {
-        BookInstance.countDocuments({}, callback);
-      },
-      book_instance_available_count(callback) {
-        BookInstance.countDocuments({ status: "Available" }, callback);
-      },
-      author_count(callback) {
-        Author.countDocuments({}, callback);
-      },
-      genre_count(callback) {
-        Genre.countDocuments({}, callback);
-      },
-    },
-    (err, results) => {
-      res.render('index', {
-        title: 'Local Library Home',
-        error: err,
-        data: results,
-      });
-    }
-  );
+    })
+  }).catch(err => {
+    res.render('index', {
+      title: 'Local Library Home',
+      error: err,
+    });
+  });
 };
 
 // Display list of all books.
@@ -50,36 +75,58 @@ exports.book_list = (req, res, next) => {
 };
 
 // Display detail page for a specific book.
+// exports.book_detail = (req, res, next) => {
+//   async.parallel(
+//     {
+//       book(callback) {
+//         Book.findById(req.params.id)
+//           .populate("author")
+//           .populate("genre")
+//           .exec(callback);
+//       },
+//       book_instance(callback) {
+//         BookInstance.find({ book: req.params.id }).exec(callback);
+//       },
+//     },
+//     (err, results) => {
+//       if (err) {
+//         return next(err);
+//       }
+//       if (results.book == null) {
+//         // No results.
+//         const err = new Error('Book not found');
+//         err.status = 404;
+//         return next(err);
+//       }
+//       res.render("book_detail", {
+//         title: results.book.title,
+//         book: results.book,
+//         book_instances: results.book_instance,
+//       });
+//     }
+//   );
+// };
+
 exports.book_detail = (req, res, next) => {
-  async.parallel(
-    {
-      book(callback) {
-        Book.findById(req.params.id)
-          .populate("author")
-          .populate("genre")
-          .exec(callback);
-      },
-      book_instance(callback) {
-        BookInstance.find({ book: req.params.id }).exec(callback);
-      },
-    },
-    (err, results) => {
-      if (err) {
-        return next(err);
-      }
-      if (results.book == null) {
-        // No results.
-        const err = new Error('Book not found');
-        err.status = 404;
-        return next(err);
-      }
-      res.render("book_detail", {
-        title: results.book.title,
-        book: results.book,
-        book_instances: results.book_instance,
-      });
+  Promise.all([
+    Book.findById(req.params.id)
+      .populate('author')
+      .populate('genre'),
+    BookInstance.find({ book: req.params.id })
+  ]).then(([book, book_instance]) => {
+    if (book == null) {
+      const err = new Error('Book not found');
+      err.status = 404;
+      return next(err);
     }
-  );
+    res.render('book_detail', {
+      title: book.title,
+      book: book,
+      book_instances: book_instance,
+    });
+  }).catch(err => {
+    return next(err);
+  })
 };
 
 // Display book create form on GET.
